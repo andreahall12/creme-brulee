@@ -1,0 +1,90 @@
+name: Step 0 # Start Exercise
+
+on:
+  workflow_dispatch:
+  # NOTE: Make sure the repository is a template before enabling this trigger.
+  push:
+     branches:
+       - main
+       - develop
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+env:
+  STEP_1_FILE: ".github/steps/1-step.md"
+
+jobs:
+  start_exercise:
+    if: |
+      !github.event.repository.is_template
+    name: Start Exercise
+    uses: skills/exercise-toolkit/.github/workflows/start-exercise.yml@v0.4.0
+    with:
+      exercise-title: "Read the docs 📚"
+      intro-message: "Get started by reading the supporting documentation 🍮"
+
+  post_next_step_content:
+    name: Post next step content
+    runs-on: ubuntu-latest
+    needs: [start_exercise]
+    env:
+      ISSUE_URL: ${{ needs.start_exercise.outputs.issue-url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get response templates
+        uses: actions/checkout@v4
+        with:
+          repository: skills/exercise-toolkit
+          path: exercise-toolkit
+          ref: v0.4.0
+
+      - name: Build comment - add step 1 content
+        id: build-comment
+        uses: skills/action-text-variables@v2
+        with:
+          template-file: ${{ env.STEP_1_FILE }}
+          template-vars: |
+            login: ${{ github.actor }}
+            full_repo_name: ${{ github.repository }}
+
+      - name: Create comment - add step content
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body "$ISSUE_BODY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_BODY: ${{ steps.build-comment.outputs.updated-text }}
+
+      - name: Create comment - watching for progress
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body-file "exercise-toolkit/markdown-templates/step-feedback/watching-for-progress.md"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create comment - complete the self-assessment quiz
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body "Complete the Read the Docs [self-assessment](https://docs.google.com/forms/d/e/1FAIpQLSdE4qJ3pmWa1SaQoWMiUI9p3ZdB947PbhqZEIFo7nWYdcJ44A/viewform?usp=header). This should be completed after [Step 1: Read the Docs](https://github.com/hbraswelrh/creme-brulee/blob/main/steps/manual_steps.md#-reading-creme-brulee-course-documentation). Did you review the OSCAL for Compliance Managers recording and complete the GitHub Skills [prerequisite](https://github.com/hbraswelrh/creme-brulee/tree/main?tab=readme-ov-file#prerequisites) courses? Those must be finished prior to this quiz. If not, start from the beginning [here](https://github.com/hbraswelrh/creme-brulee/tree/main#prerequisites). "
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create comment - comment on the issue to trigger next workflow
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body "Add a comment below linking your notes from Step 1 :pencil2:. Then start [Step 2: Practice Communicating using Markdown and Git ](https://github.com/hbraswelrh/creme-brulee/blob/main/.github/steps/2-step.md)."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable next step workflow
+        run: |
+          gh workflow enable "Step 1"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+     
